@@ -24,8 +24,12 @@ function get(uid){
 
 function post(userDetails,password){
     userDetails.password = password
-    userDetails.uid = usersdb[usersdb.length-1] + 1
+    userDetails.uid = 0
+    if (usersdb.length>0){
+    userDetails.uid = usersdb[usersdb.length-1].uid + 1
+    }
     usersdb.push(userDetails)
+    return usersdb[usersdb.length-1]
 }
 
 function put(user){

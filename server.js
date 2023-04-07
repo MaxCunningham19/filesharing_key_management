@@ -18,18 +18,20 @@ function decryptCert(req, res, next){
     let jsonData = {}
     try{
         symKey = crypto.privateDecrypt(privateKey,Buffer.from(req.body.key,'base64')).toString('base64')
+        symKey = Buffer.from(symKey,'base64'),toString('utf-8')
     }catch(err){
         return res.status(500).json({error:"could not decrypt symetric key: "+err})
     }
     try{
-        let decipher = crypto.createDecipher('aes256',Buffer.from(symKey,'base64'))
-        let decData = decipher.update(req.body.data,'base64','utf-8') + decipher.final('utf-8')
+        let decData = symetricDecrypt(symKey,req.body.data)
         jsonData = JSON.parse(decData)
     }catch(err){
         return res.status(500).json({error:"could not decrypt cert and signature: "+err})
     }
     req.body.cert = jsonData.cert
     req.body.signature = jsonData.signature
+    req.body.symetricKey = Buffer.from(symKey,'base64'),toString('utf-8')
+    req.body.password = jsonData.password
     next();
 }
 
@@ -37,7 +39,6 @@ function decryptCert(req, res, next){
 function validateCert(req, res, next) {
     console.log('validateCert')
     let jsonCert = cert.jsonCert(req.body.cert)
-    console.log(jsonCert)
     let hash = crypto.createHash('sha256').update(req.body.cert).digest('base64')
     let signature = ""
     try{
@@ -53,6 +54,20 @@ function validateCert(req, res, next) {
     }
     req.body.cert = jsonCert
     next();
+}
+
+function symetricDecrypt(symKey,encData){
+    let decipher = crypto.createDecipher('aes256',symKey)
+    let decData = decipher.update(encData,'base64','utf-8') + decipher.final('utf-8')
+    return decData
+}
+
+function symetricEncrypt(symKey, data) {
+    try {
+        let cipher = crypto.createCipher('aes256', symKey)
+        let encData = cipher.update(data, 'utf-8', 'base64') + cipher.final('base64')
+        return encData
+    } catch{}
 }
 
 function sessionDecrypt(req, res, next){
@@ -84,7 +99,7 @@ function generateSession(user) {
     let date = new Date()
     date = date.setHours(date.getHours() + 1)
     let session = {
-        key: crypto.randomBytes(256), // generate a session key
+        key: crypto.randomBytes(256).toString('base64'), // generate a session key
         uid: user.uid,
         id: crypto.randomBytes(64).toString('base64'),
         expires: date
@@ -97,16 +112,15 @@ function generateSession(user) {
 app.use(bodyParser.json())
 
 app.post('/key', (req, res) => {
-    console.log('key')
     res.json({ publicKey: publicKey})
 })
 
 app.post('/valid',decryptCert,validateCert,(req,res)=>{
-    console.log('valid')
     res.json({msg:'Good CERT'})
 })
 
 app.post('/signup', decryptCert, validateCert, (req, res) => {
+    console.group(req.body)
     let { created, user } = createUser(req.body.cert, req.body.password)
     if (!created) {
         return res.status(400).json({ error: "already have an account" })
@@ -115,11 +129,13 @@ app.post('/signup', decryptCert, validateCert, (req, res) => {
     if (!done){
         return res.status(500).json({ error: "failed to generate a session" })
     }
-    let data = encryptPublic(req.body.cert.publicKey, JSON.stringify({ session, uid: user.uid }))
+    let encKey = crypto.publicEncrypt(req.body.cert.publicKey,session.key).toString('base64')
+    let data = symetricEncrypt(session.key, JSON.stringify({sessionId:session.id,userID:user.uid}))
     if (data === undefined) {
         return res.status(500).json({ error: "failed encrypting data" })
     }
-    res.json({ data: data })
+    console.log(user)
+    res.json({ sessionKey:encKey,data: data })
 })
 
 app.post('/login', decryptCert, validateCert, (req, res) => {
