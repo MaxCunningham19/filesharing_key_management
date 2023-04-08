@@ -71,8 +71,8 @@ function symetricEncrypt(symetricKey, data) {
     }
 }
 
-function symerticDecrypt(symKey, encData) {
-    let decipher = crypto.createDecipher('aes256', Buffer.from(symKey, 'base64'))
+function symetricDecrypt(symKey, encData) {
+    let decipher = crypto.createDecipher('aes256', symKey)
     let decData = decipher.update(encData, 'base64', 'utf-8') + decipher.final('utf-8')
     return decData
 }
@@ -119,13 +119,11 @@ function getSession(uid){
 function getUserData(name, email) {
     for (let i = 0; i < sessionDetails.users.length; i++) {
         if (sessionDetails.users[i].email === email && sessionDetails.users[i].name === name) {
-            console.log("session")
             return sessionDetails.users[i]
         }
     }
     try {
         if (fs.existsSync(`${__dirname}/users/${email}.json`)) {
-            console.log("filesys")
             let details = JSON.parse(fs.readFileSync(`${__dirname}/users/${email}.json`, { encoding: "utf-8" }))
             return details
         }
@@ -147,8 +145,9 @@ app.post('/signup', async (req, res) => {
     if (response.status !== 200) {
         return res.status(response.status).json({ error: jsonRes.error })
     }
-    let sessionKey = crypto.privateDecrypt(privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('base64')
-    let decData = JSON.parse(symerticDecrypt(sessionKey, jsonRes.data))
+    let sessionKey = crypto.privateDecrypt(privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('utf-8')
+    let decData = symetricDecrypt(sessionKey,jsonRes.data)
+    decData = JSON.parse(decData)
     saveUserData(decData.userID, req.body.email, req.body.name, decData.sessionID, sessionKey, publicKey, privateKey, certificate)
     res.json({ uid: decData.userID })
 })
@@ -165,23 +164,33 @@ app.post('/login', async (req, res) => {
     if (response.status !== 200) {
         return res.status(response.status).json({ error: jsonRes.error })
     }
-    let sessionKey = crypto.privateDecrypt(details.privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('base64')
-    let decData = JSON.parse(symerticDecrypt(sessionKey, jsonRes.data))
+    let sessionKey = crypto.privateDecrypt(details.privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('utf-8')
+    let decData = JSON.parse(symetricDecrypt(sessionKey, jsonRes.data))
     saveUserData(decData.userID, req.body.email, decData.sessionID, sessionKey, publicKey, privateKey, certificate)
     res.json({ uid: decData.userID})
 })
 
 app.post('/users/:uid/groups/',async (req,res)=>{
-    console.log("here")
-    console.log(req.body)
    let session = getSession(req.body.uid)
    if (session===undefined){
         return res.status(500).json({error:"not signed in or session has expired"})
    }
-   console.log("session:",session)
    let data = symetricEncrypt(session.key,JSON.stringify({email:req.body.email}))
    let {response, jsonRes} = await getEndpoint(`/${req.body.uid}/groups`,'POST',{data,sessionID:session.id})
-   console.log("there",jsonRes)
+   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
+   res.json(decData)
+})
+
+app.post('/groups', async (req, res) => {
+   let session = getSession(req.body.uid)
+   console.log(req.body)
+   if (session===undefined){
+        return res.status(500).json({error:"not signed in or session has expired"})
+   }
+   let data = symetricEncrypt(session.key,JSON.stringify({uid:req.body.uid,name:req.body.name,members:req.body.members,email:req.body.email}))
+   let {response, jsonRes} = await getEndpoint(`/groups`,'POST',{data,sessionID:session.id})
+   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
+   res.json(decData)
 })
 
 

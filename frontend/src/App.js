@@ -115,7 +115,8 @@ function GroupList(inputs) {
   function loadGroups(uid,email){
     if(load){
       axios.post(server+`/users/${uid}/groups/`,{uid,email}).then(res=>{
-        setGroups(res.data.groups)
+        console.log(res.data)
+        res.data.groups?setGroups(res.data.groups):setGroups([])
         setLoad(false)
       })
     }
@@ -130,7 +131,7 @@ function GroupList(inputs) {
   return (
     <div>
       {groups.length > 0 ? groups.map(group => { return <Group group={group}/> }) : <></>}
-      <GroupForm user={inputs.user} />
+      <GroupForm user={inputs.user} setLoad={setLoad} />
     </div>)
 }
 
@@ -283,32 +284,14 @@ function GroupForm(info) {
   const [groupName, setGroupName] = useState('')
 
 
-  function generateKey(){ 
-    //return generateKeySync('aes', { length: 128 }).export()
-    return "abcde"
-  }
-
   async function createGroup() {
     if (groupName !== '') {
-      const ownerEmail = info.user.email;
-      let tmp_key = await generateKey()
-      const newGroup = {
-        name: groupName,
-        members: memberList,
-        owner: ownerEmail,
-        encKey: tmp_key
-      };
-
-      try {
-        // const gRef = doc(groupRef);
-        // await setDoc(gRef, newGroup);
-      } catch (error) {
-        console.error(error);
+      axios.post(server+`/groups`,{ name: groupName,members: memberList,uid:info.user.uid,email:info.user.email}).then(res=>{
+            resetForm()
+            info.setLoad(true)
+          })
       }
-      resetForm()
     }
-
-  }
 
   function resetForm() {
     setList([])

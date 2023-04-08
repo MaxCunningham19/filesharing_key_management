@@ -18,3 +18,23 @@ function get(uid,email){
     }
     return tmp.length>0?tmp:undefined
 }
+
+function getKey(id,user){
+    for(let i=0;i<groupdb.length;i++){
+        if (groupdb[i].ownerID === user || isMember(groupdb[i].members,user) ){
+            return groupdb[i].key
+        }
+    }
+}
+
+function post(ownerid,name,members,groupKey){
+    groupdb.push({
+        name,
+        owner:ownerid,
+        members,
+        key:groupKey,
+        id: groupdb[groupdb.length-1].id+1
+    })
+}
+
+module.exports = {get,post}

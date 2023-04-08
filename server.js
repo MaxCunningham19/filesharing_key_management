@@ -72,14 +72,13 @@ function symetricEncrypt(symKey, data) {
 
 // middleware
 function sessionDecrypt(req, res, next){
-    console.log("session id",req.body.sessionID,"\n")
-    Users.printOut()
     let info = Users.getSession(req.body.sessionID)
+    console.log("sessionID:",req.body.sessionID)
+    console.log(info)
     if (info===undefined){
         return res.status(400).json({error:"session does not exist"})
     }
-    console.log("info:",info)
-    decData = JSON.parse(symetricDecrypt(Buffer.from(info.session.key,'base64'),req.body.data))
+    decData = JSON.parse(symetricDecrypt(info.session.key,req.body.data))
     req.body = decData
     req.body.session = info.session
     next();
@@ -139,7 +138,7 @@ app.post('/signup', decryptCert, validateCert, (req, res) => {
     if (!done){
         return res.status(500).json({ error: "failed to generate a session" })
     }
-    let encKey = crypto.publicEncrypt(req.body.cert.publicKey,session.key).toString('base64')
+    let encKey = crypto.publicEncrypt(req.body.cert.publicKey,Buffer.from(session.key)).toString('base64')
     let data = symetricEncrypt(session.key, JSON.stringify({sessionID:session.id,userID:user.uid}))
     if (data === undefined) {
         return res.status(500).json({ error: "failed encrypting data" })
@@ -159,16 +158,17 @@ app.post('/login', decryptCert, validateCert, (req, res) => {
 
 // get all groups you are a part of
 app.post('/:uid/groups', sessionDecrypt, (req, res) => {
-    console.log("group endpoint")
-    let groups = Groups.get(uid,req.body.email)
-    console.log('groups:',groups)
+    let groups = Groups.get(req.body.uid,req.body.email)
     let data = symetricEncrypt(req.body.session.key,JSON.stringify({groups}))
     res.json({data})
 })
 
 // create a group
 app.post('/groups', sessionDecrypt, (req, res) => {
-
+    Groups.post(req.body.uid,req.body.name,req.body.members,crypto.randomBytes(256).toString('base64'))
+    let groups = Groups.get(req.body.uid,req.body.email)
+    let data = symetricEncrypt(req.body.session.key,JSON.stringify({groups}))
+    res.json({data})
 })
 
 // update a group (you must be the owner)
