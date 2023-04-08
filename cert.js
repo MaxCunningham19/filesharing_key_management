@@ -48,5 +48,5 @@ function validCert(cert){
 module.exports = {
     generateCertificate,
     validCert, 
-    jsonCert
+    jsonCert, isEmail
 }

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homepage</title>
+</head>
+<style>
+    .grouplist{
+        margin: 0;
+        padding: 0;
+        list-style-type:armenian;
+    }
+    .grouplist li {
+        background: #fff;
+        padding: 0px 0 5px 15px;
+    }
+</style>
+<body>
+    <h1>Homepage <%=locals.user.name || "" %></h1>
+    <% if(!locals.signedIn){ %>
+        <a href="/login">LOGIN</a> <a href="/signup">SIGNUP</a>
+    <% } else { %>
+        <h3>Group List</h3>
+        <ul class="grouplist">
+        <%for (let i=0;i<locals.user.groups.length;i++){%>
+            <li><a href='/groups/<%=locals.user.groups[i].id%>'><%=locals.user.groups[i].name%></a></li>
+        <%}%>
+    </ul>
+        <br>
+        <h3>New Group</h3>
+        <form action="groups/" method="post">
+            <label for="name">Group Name:</label>
+            <input type="text" id="name" name="name" autocomplete="off"><br>
+            <label for="members">Enter Members Email:</label>
+            <input type="text" id="members" name="members" autocomplete="off"><br>
+            <button type="submit">Create Group</button>
+        </form><br><br>
+        <form action="/signout" method="post"><button type="submit">Signout</button></form>
+    <% } %>
+</body>
+</html>

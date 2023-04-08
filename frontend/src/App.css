@@ -1,0 +1,118 @@
+.App {
+  text-align: center ;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App .group {
+  background-color: #4e5053;
+  margin-bottom: 20px;
+  padding-left: 50px;
+  padding-right: 50px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-radius: 20px;
+}
+
+.App .group .display {
+  display: flex;
+}
+
+.App .group .buttons {
+  display: flex;
+  margin: 20px;
+}
+
+.App .group .standard {
+  margin-right: 2px;
+  background-color: #56595f;
+  border-color: #797b7d;
+  color: rgb(255, 255, 255);
+  border-radius: 4px;
+}
+
+.App .group .buttons .standard:hover {
+  background-color: #44474c;
+  border-color: #62676b;
+}
+
+.App .group .add-member input {
+  margin-right: 5px;
+}
+
+.App .group .member-list {
+  align-items: center;
+}
+.App .group .member-list .mem-list-item {
+  display: flex
+}
+
+.App .group .member-list .mem-list-item .x {
+  border-radius: 9999px;
+  padding: 0px;
+  margin: 1px;
+  margin-top: 15px;
+  margin-left: 5px;
+  height: 20px;
+  width: 20px;
+  text-align:center;
+  background-color: #523e3e;
+  border-color: #805959;
+  color: rgb(188, 40, 40);
+}
+
+.App .group .member-list .mem-list-item .x:hover {
+  background-color: #483333;
+  border-color: #714a4a;
+  color: rgb(214, 38, 38);
+}
+
+
+.App .group .add-member .standard {
+  background-color: #56595f;
+  border-color: #797b7d;
+  color: rgb(255, 255, 255);
+  border-radius: 4px;
+}
+
+.App .group .add-member .standard:hover {
+  background-color: #44474c;
+  border-color: #62676b;
+}
+
+.App .group .buttons .delete {
+  margin-right: 2px;
+  background-color: #523e3e;
+  border-color: #805959;
+  color: rgb(188, 40, 40);
+  border-radius: 4px;
+}
+
+.App .group .buttons .delete:hover {
+  background-color: #483333;
+  border-color: #714a4a;
+  color: rgb(214, 38, 38);
+}
+
+.App .group label {
+  font-size:15px;
+  margin-right: 5px;
+}
+
+.App .group .member-list{
+  font-size:15px;
+  margin: 0;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
