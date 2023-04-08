@@ -126,7 +126,7 @@ function GroupList(inputs) {
     if(load){
       loadGroups(inputs.user.uid,inputs.user.email)
     }
-  }, []);
+  }, [load]);
 
   return (
     <div>
@@ -287,6 +287,7 @@ function GroupForm(info) {
   async function createGroup() {
     if (groupName !== '') {
       axios.post(server+`/groups`,{ name: groupName,members: memberList,uid:info.user.uid,email:info.user.email}).then(res=>{
+            console.log(res.data)
             resetForm()
             info.setLoad(true)
           })

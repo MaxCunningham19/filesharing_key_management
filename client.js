@@ -108,6 +108,7 @@ function saveUserData(uid, email, name, sessionID, sessionKey, publicKey, privat
 }
 
 function getSession(uid){
+    console.log(sessionDetails)
     for (let i = 0; i < sessionDetails.users.length; i++) {
         if (sessionDetails.users[i].uid === uid) {
             return {id:sessionDetails.users[i].sessionID,key:sessionDetails.users[i].sessionKey}
@@ -183,13 +184,14 @@ app.post('/users/:uid/groups/',async (req,res)=>{
 
 app.post('/groups', async (req, res) => {
    let session = getSession(req.body.uid)
-   console.log(req.body)
+   console.log(req.body,session)
    if (session===undefined){
         return res.status(500).json({error:"not signed in or session has expired"})
    }
    let data = symetricEncrypt(session.key,JSON.stringify({uid:req.body.uid,name:req.body.name,members:req.body.members,email:req.body.email}))
    let {response, jsonRes} = await getEndpoint(`/groups`,'POST',{data,sessionID:session.id})
    let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
+   console.log(decData)
    res.json(decData)
 })
 

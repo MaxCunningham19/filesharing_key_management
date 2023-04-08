@@ -12,10 +12,13 @@ function isMember(members,email){
 function get(uid,email){
     let tmp = []
     for(let i=0;i<groupdb.length;i++){
-        if (groupdb[i].ownerID === uid || isMember(groupdb[i].members,email)){
-            tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members})
+        if (groupdb[i].owner === uid || isMember(groupdb[i].members,email)){
+            tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members,owner:groupdb[i].owner === uid})
+            console.log("pushin")
         }
     }
+    console.log("groups:",groupdb)
+    console.log("tmp:",tmp)
     return tmp.length>0?tmp:undefined
 }
 
@@ -33,7 +36,7 @@ function post(ownerid,name,members,groupKey){
         owner:ownerid,
         members,
         key:groupKey,
-        id: groupdb[groupdb.length-1].id+1
+        id: groupdb.length>0?groupdb[groupdb.length-1].id+1:0
     })
 }
 
