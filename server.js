@@ -13,7 +13,6 @@ app.use(bodyParser.urlencoded({ extended: false }))
 
 // middleware
 function decryptCert(req, res, next){
-    console.log('decrypt cert')
     let symKey = ""
     let jsonData = {}
     try{
@@ -37,7 +36,6 @@ function decryptCert(req, res, next){
 
 // middleware
 function validateCert(req, res, next) {
-    console.log('validateCert')
     let jsonCert = cert.jsonCert(req.body.cert)
     let hash = crypto.createHash('sha256').update(req.body.cert).digest('base64')
     let signature = ""
@@ -57,9 +55,11 @@ function validateCert(req, res, next) {
 }
 
 function symetricDecrypt(symKey,encData){
+    try{
     let decipher = crypto.createDecipher('aes256',symKey)
     let decData = decipher.update(encData,'base64','utf-8') + decipher.final('utf-8')
     return decData
+    }catch(err){console.log("\nerror:",err)}
 }
 
 function symetricEncrypt(symKey, data) {
@@ -70,7 +70,18 @@ function symetricEncrypt(symKey, data) {
     } catch{}
 }
 
+// middleware
 function sessionDecrypt(req, res, next){
+    console.log("session id",req.body.sessionID,"\n")
+    Users.printOut()
+    let info = Users.getSession(req.body.sessionID)
+    if (info===undefined){
+        return res.status(400).json({error:"session does not exist"})
+    }
+    console.log("info:",info)
+    decData = JSON.parse(symetricDecrypt(Buffer.from(info.session.key,'base64'),req.body.data))
+    req.body = decData
+    req.body.session = info.session
     next();
 }
 
@@ -85,7 +96,7 @@ function createUser(userDetails, password) {
     return {created:true,user}
 }
 
-function createSession(session) {
+function saveSession(session) {
     let user = Users.get(session.uid)
     if (user === undefined){
         return false
@@ -104,7 +115,7 @@ function generateSession(user) {
         id: crypto.randomBytes(64).toString('base64'),
         expires: date
     }
-    let done = createSession(session)
+    let done = saveSession(session)
     return {done,session}
 }
 
@@ -120,7 +131,6 @@ app.post('/valid',decryptCert,validateCert,(req,res)=>{
 })
 
 app.post('/signup', decryptCert, validateCert, (req, res) => {
-    console.group(req.body)
     let { created, user } = createUser(req.body.cert, req.body.password)
     if (!created) {
         return res.status(400).json({ error: "already have an account" })
@@ -130,11 +140,10 @@ app.post('/signup', decryptCert, validateCert, (req, res) => {
         return res.status(500).json({ error: "failed to generate a session" })
     }
     let encKey = crypto.publicEncrypt(req.body.cert.publicKey,session.key).toString('base64')
-    let data = symetricEncrypt(session.key, JSON.stringify({sessionId:session.id,userID:user.uid}))
+    let data = symetricEncrypt(session.key, JSON.stringify({sessionID:session.id,userID:user.uid}))
     if (data === undefined) {
         return res.status(500).json({ error: "failed encrypting data" })
     }
-    console.log(user)
     res.json({ sessionKey:encKey,data: data })
 })
 
@@ -147,30 +156,14 @@ app.post('/login', decryptCert, validateCert, (req, res) => {
     res.json({ data: data })
 })
 
-// get all users
-app.get('/users', sessionDecrypt, (req, res) => {
-    db.get_users()
-})
-
-// create a profile
-app.post('/users', sessionDecrypt, (req, res) => {
-    console.log(req.body)
-    //res.json({msg:'Hello from SSL server'})
-})
-
-// update your profile
-app.put('/users', sessionDecrypt, (req, res) => {
-
-})
-
-// delete your profile
-app.delete('/users/:id', sessionDecrypt, (req, res) => {
-
-})
 
 // get all groups you are a part of
-app.get('/groups', sessionDecrypt, (req, res) => {
-
+app.post('/:uid/groups', sessionDecrypt, (req, res) => {
+    console.log("group endpoint")
+    let groups = Groups.get(uid,req.body.email)
+    console.log('groups:',groups)
+    let data = symetricEncrypt(req.body.session.key,JSON.stringify({groups}))
+    res.json({data})
 })
 
 // create a group

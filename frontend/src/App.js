@@ -6,6 +6,10 @@ import axios from 'axios'
 
 const server = 'http://localhost:3001'
 
+async function getGroups(uid,email){
+  let res = await axios.post(server+`/users/${uid}/groups/`,{email})
+  return res.groups
+}
 
 function isEmail(email) {
   let whitespace = email.split(' ').length !== 0
@@ -23,7 +27,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>FileShare {signedIn ? ' - ' + user.displayName : ''}</h1>
+        <h1>FileShare {signedIn ? ' - ' + user.name : ''}</h1>
         {signedIn ? <Homepage user={user}/> : <User setUser={setUser} signIn={signIn} />}
       </header>
     </div>
@@ -39,7 +43,7 @@ function User(values) {
       <button onClick={()=>{setSign(true)}}>Signup</button>
       <button onClick={()=>{setSign(false)}}>Login</button>
       {signup?
-      <Signup setUser={values.setUser}/>:<Login setUser={values.setUser}/>}
+      <Signup setUser={values.setUser} signIn = {values.signIn}/>:<Login setUser={values.setUser} signIn = {values.signIn}/>}
     </div> 
   )
 }
@@ -69,7 +73,6 @@ function Signup(values){
         <label for="cpword">Confirm Password:</label>
         <input type="text" id="cpword" name="cpword" autocomplete="off" onChange={(event)=>{setConfirm(event.target.value)}}/><br/>
         <button onClick={()=>{
-          console.log('here')
           if(name===''){
             alert('please input a correct name')
           } else if (!isEmail(email)){
@@ -81,7 +84,8 @@ function Signup(values){
           } else {
             axios.post(server+'/signup',{name,email,country,pword:password}).then(
               res=>{
-                values.setUser(res.user)
+                values.setUser({uid:res.data.uid,name:name,email:email,sessionID:res.data.sessionID,groups:[]})
+                values.signIn(true)
               }
             )
           }
@@ -105,38 +109,23 @@ function Homepage(user) {
 
 
 function GroupList(inputs) {
+  const [load,setLoad] = useState(true)
   const [groups, setGroups] = useState([])
 
-  function isMember(memberList, user) {
-    for (let i = 0; i < memberList.length; i++) {
-      if (memberList[i] === user.uid || memberList[i] === user.email) {
-        return true
-      }
+  function loadGroups(uid,email){
+    if(load){
+      axios.post(server+`/users/${uid}/groups/`,{uid,email}).then(res=>{
+        setGroups(res.data.groups)
+        setLoad(false)
+      })
     }
-    return false
   }
 
-
-  // useEffect(() => {
-  //   const unsub = onSnapshot(groupRef, (querySnapshot) => {
-  //     const items = [];
-  //     querySnapshot.forEach((doc) => {
-  //       if (inputs.user.email === doc.data().owner || isMember(doc.data().members, inputs.user)) {
-  //         let tmp = doc.data()
-  //         tmp.key = doc.id
-  //         tmp.owner = false
-  //         if (inputs.user.email === doc.data().owner) {
-  //           tmp.owner = true
-  //         }
-  //         items.push(tmp);
-  //       }
-  //     });
-  //     setGroups(items);
-  //   });
-  //   return () => {
-  //     unsub();
-  //   };
-  // }, []);
+  useEffect(() => {
+    if(load){
+      loadGroups(inputs.user.uid,inputs.user.email)
+    }
+  }, []);
 
   return (
     <div>

@@ -42,14 +42,19 @@ function put(user){
 
 function getSession(sessionID){
     for(let i=0;i<usersdb.length;i++){
-        if (usersdb[i].session !== undefined && usersdb[i].session.id === sessionID){
-            return usersdb.session
+        if ( usersdb[i].session !== undefined && usersdb[i].session.id === sessionID){
+            return {session:usersdb[i].session,uid:usersdb[i].uid}
         }
     }
+    return undefined
+}
+
+function printOut(){
+    console.log(usersdb)
 }
 
 module.exports = {
     get,
     post,
-    put, getSession
+    put, getSession,printOut
 }
