@@ -38,21 +38,21 @@ async function signup(certificate, password, privateKey) {
     return { response, jsonRes } = await getEndpoint('/signup', 'POST', { key: encKey, data: encData })
 }
 
-async function login(certificate, password, privateKey) {
+async function login(certificate, password, privateKey,sessionID,sessionKey,uid) {
     if (sessionDetails.serverKey === "") {
         sessionDetails.serverKey = getKey()
     }
-    let symKey = crypto.randomBytes(256)
-    let encKey = crypto.publicEncrypt(sessionDetails.serverKey, symKey).toString('base64')
+    let encKey = crypto.publicEncrypt(sessionDetails.serverKey, sessionKey).toString('base64')
     let signature = createSignature(certificate, privateKey)
     let data = {
         cert: certificate,
         signature: signature,
-        password: password
+        password: password,
+        uid
     }
     let strData = JSON.stringify(data)
-    let encData = symetricEncrypt(symKey, strData)
-    return { response, jsonRes } = await getEndpoint('/signup', 'POST', { key: encKey, data: encData })
+    let encData = symetricEncrypt(sessionKey, strData)
+    return { response, jsonRes } = await getEndpoint('/login', 'POST', { key: encKey, data: encData })
 }
 
 function createSignature(data, privateKey) {
@@ -103,12 +103,19 @@ function hash(string) {
 }
 
 function saveUserData(uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate) {
-    sessionDetails.users.push({ uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate })
+    let saved = false;
+    for(let i=0;i<sessionDetails.users.length;i++){
+        if(sessionDetails.users[i].uid === uid && sessionDetails.users[i].email === email){
+            sessionDetails.users[i] = { uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate }
+            saved = true
+            break;
+        }
+    }
+    if(!saved){sessionDetails.users.push({ uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate })}
     saveToFile(email, { uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate })
 }
 
 function getSession(uid){
-    console.log(sessionDetails)
     for (let i = 0; i < sessionDetails.users.length; i++) {
         if (sessionDetails.users[i].uid === uid) {
             return {id:sessionDetails.users[i].sessionID,key:sessionDetails.users[i].sessionKey}
@@ -117,9 +124,9 @@ function getSession(uid){
     return 
 }
 
-function getUserData(name, email) {
+function getUserData(email) {
     for (let i = 0; i < sessionDetails.users.length; i++) {
-        if (sessionDetails.users[i].email === email && sessionDetails.users[i].name === name) {
+        if (sessionDetails.users[i].email === email) {
             return sessionDetails.users[i]
         }
     }
@@ -136,7 +143,7 @@ app.post('/signup', async (req, res) => {
     if (req.body.name === "" || req.body.name == undefined || !cert.isEmail(req.body.email) || req.body.country == undefined || req.body.country.length != 2 || req.body.pword === "") {
         return res.status(400).json({ error: "invalid inputs try again" })
     }
-    details = getUserData(req.body.name, req.body.email)
+    details = getUserData(req.body.email)
     if (details !== undefined) {
         return res.status(404).json({ error: "account already exits for this email - login or use a different email" })
     }
@@ -154,24 +161,25 @@ app.post('/signup', async (req, res) => {
 })
 
 app.post('/login', async (req, res) => {
-    if (req.body.name === "" || req.body.name == undefined || !cert.isEmail(req.body.email) || req.body.pword === "") {
+    if (!cert.isEmail(req.body.email) || req.body.pword === "") {
         return res.status(400).json({ error: "invalid inputs try again" })
     }
-    details = getUserData(req.body.name, req.body.email, hash(req.body.pword))
+    details = getUserData(req.body.email)
     if (details === undefined) {
         return res.status(400).json({ error: "no account exists" })
     }
-    let { response, jsonRes } = await login(details.certificate, hash(req.body.pword), details.privateKey)
+
+    let { response, jsonRes } = await login(details.certificate, hash(req.body.pword), details.privateKey,details.sessionID,details.sessionKey,details.uid)
     if (response.status !== 200) {
         return res.status(response.status).json({ error: jsonRes.error })
     }
     let sessionKey = crypto.privateDecrypt(details.privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('utf-8')
     let decData = JSON.parse(symetricDecrypt(sessionKey, jsonRes.data))
-    saveUserData(decData.userID, req.body.email, decData.sessionID, sessionKey, publicKey, privateKey, certificate)
-    res.json({ uid: decData.userID})
+    saveUserData(decData.userID, req.body.email, decData.name, decData.sessionID, sessionKey, details.publicKey, details.privateKey, details.certificate)
+    res.json({ uid: decData.userID,name:decData.name})
 })
 
-app.post('/users/:uid/groups/',async (req,res)=>{
+app.post('/users/:uid/groups',async (req,res)=>{
    let session = getSession(req.body.uid)
    if (session===undefined){
         return res.status(500).json({error:"not signed in or session has expired"})
@@ -184,13 +192,26 @@ app.post('/users/:uid/groups/',async (req,res)=>{
 
 app.post('/groups', async (req, res) => {
    let session = getSession(req.body.uid)
-   console.log(req.body,session)
    if (session===undefined){
         return res.status(500).json({error:"not signed in or session has expired"})
    }
    let data = symetricEncrypt(session.key,JSON.stringify({uid:req.body.uid,name:req.body.name,members:req.body.members,email:req.body.email}))
    let {response, jsonRes} = await getEndpoint(`/groups`,'POST',{data,sessionID:session.id})
    let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
+   res.json(decData)
+})
+
+app.post('/del/groups/:id/',async(req,res)=>{
+    console.log(req.body)
+    console.log("del group session dets:",sessionDetails.users)
+   let session = getSession(req.body.uid)
+   if (session===undefined){
+        return res.status(500).json({error:"not signed in or session has expired"})
+   }
+   let data = symetricEncrypt(session.key,JSON.stringify({id:req.body.id,uid:req.body.uid,email:req.body.email}))
+   let {response, jsonRes} = await getEndpoint(`/del/groups/${req.body.id}`,'POST',{data,sessionID:session.id})
+   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
+   console.log("here")
    console.log(decData)
    res.json(decData)
 })

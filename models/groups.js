@@ -14,11 +14,25 @@ function get(uid,email){
     for(let i=0;i<groupdb.length;i++){
         if (groupdb[i].owner === uid || isMember(groupdb[i].members,email)){
             tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members,owner:groupdb[i].owner === uid})
-            console.log("pushin")
         }
     }
-    console.log("groups:",groupdb)
-    console.log("tmp:",tmp)
+    return tmp.length>0?tmp:undefined
+}
+
+function del(groupID,uid,email){
+    let tmp = []
+    let todel = -1;
+    for(let i=0;i<groupdb.length;i++){
+        if(groupdb[i].id === groupID && groupdb[i].owner === uid){
+            todel = i
+        }
+        else if (groupdb[i].owner === uid || isMember(groupdb[i].members,email)){
+            tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members,owner:groupdb[i].owner === uid})
+        }
+    }
+    if(todel !== -1){
+        groupdb.splice(todel,1)
+    }
     return tmp.length>0?tmp:undefined
 }
 
@@ -40,4 +54,4 @@ function post(ownerid,name,members,groupKey){
     })
 }
 
-module.exports = {get,post}
+module.exports = {get,post,del}

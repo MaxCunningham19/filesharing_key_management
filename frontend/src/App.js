@@ -1,15 +1,9 @@
 import './App.css';
 import { useState, useEffect } from 'react'
-import { initializeApp } from 'firebase/app';
 
 import axios from 'axios'
 
 const server = 'http://localhost:3001'
-
-async function getGroups(uid,email){
-  let res = await axios.post(server+`/users/${uid}/groups/`,{email})
-  return res.groups
-}
 
 function isEmail(email) {
   let whitespace = email.split(' ').length !== 0
@@ -84,7 +78,7 @@ function Signup(values){
           } else {
             axios.post(server+'/signup',{name,email,country,pword:password}).then(
               res=>{
-                values.setUser({uid:res.data.uid,name:name,email:email,sessionID:res.data.sessionID,groups:[]})
+                values.setUser({uid:res.data.uid,name:name,email:email})
                 values.signIn(true)
               }
             )
@@ -95,13 +89,49 @@ function Signup(values){
 }
 
 function Login(values){
-  return <></>
+  const [email,setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  return (<div>
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email"autocomplete="off" onChange={(event) => { setEmail(event.target.value) }}/><br/>
+    <label for="pword">Password:</label>
+    <input type="text" id="pword" name="pword" autocomplete="off" onChange={(event)=>{setPassword(event.target.value)}}/><br/>
+    <button onClick={()=>{
+      if (!isEmail(email)){
+        alert('please input a correct email address')
+      } else if (password === ''){
+        alert('please input a password')
+      } else {
+        axios.post(server+'/login',{email,pword:password}).then(
+          res=>{
+            values.setUser({uid:res.data.uid,name:res.data.name,email:email})
+            values.signIn(true)
+          }
+        )
+      }
+    }}>Login</button>
+</div>)
 }
 
 function Homepage(user) {
+  const [load,setLoad] = useState(true)
+  const [groups, setGroups] = useState([])
+  function loadGroups(uid,email){
+    if(load){
+      axios.post(server+`/users/${uid}/groups`,{uid,email}).then(res=>{
+        if(res.data.groups!==undefined && res.data.groups.length>0){
+            setGroups(res.data.groups)
+        }
+        setLoad(false)
+      })
+    }
+  }
   return (
     <div>
-      <GroupList user={user.user} />
+      <div>
+      <button className='refresh' onClick={()=>{loadGroups(user.user.uid,user.user.email)}}>Refresh</button>
+      </div><br></br>
+      <GroupList user={user.user} groups={groups} setGroups={setGroups} loadGroups={loadGroups} />
     </div>
   )
 }
@@ -109,30 +139,11 @@ function Homepage(user) {
 
 
 function GroupList(inputs) {
-  const [load,setLoad] = useState(true)
-  const [groups, setGroups] = useState([])
-
-  function loadGroups(uid,email){
-    if(load){
-      axios.post(server+`/users/${uid}/groups/`,{uid,email}).then(res=>{
-        console.log(res.data)
-        res.data.groups?setGroups(res.data.groups):setGroups([])
-        setLoad(false)
-      })
-    }
-  }
-
-  useEffect(() => {
-    if(load){
-      loadGroups(inputs.user.uid,inputs.user.email)
-    }
-  }, [load]);
-
-  return (
+  return (<>
     <div>
-      {groups.length > 0 ? groups.map(group => { return <Group group={group}/> }) : <></>}
-      <GroupForm user={inputs.user} setLoad={setLoad} />
-    </div>)
+      {inputs.groups.length > 0 ? inputs.groups.map(group => {return <Group group={group} user={inputs.user} loadGroups={inputs.loadGroups} setGroups={inputs.setGroups}/> }) : <></>}
+      <GroupForm user={inputs.user} setLoad={inputs.setLoad} setGroups={inputs.setGroups} />
+    </div></>)
 }
 
 function Group(info) {
@@ -141,12 +152,10 @@ function Group(info) {
   async function deleteGroup() {
     // eslint-disable-next-line no-restricted-globals
     if (confirm("Are you sure?\nDeleting this group will mean all previously encoded files canot be decoded")) {
-      // try {
-      //   const schoolRef = doc(groupRef, info.group.key);
-      //   await deleteDoc(schoolRef, schoolRef);
-      // } catch (error) {
-      //   console.error(error);
-      // }
+      console.log(info.group.id,info.user.uid,info.user.email)
+      axios.post(server+`/del/groups/${info.group.id}/`,{id:info.group.id,uid:info.user.uid,email:info.user.email}).then(res=>{if(res.data.groups!==undefined && res.data.groups.length>0){
+        info.setGroups(res.data.groups)
+    }else{info.setGroups([])}})
     }
   }
   return (
@@ -287,9 +296,8 @@ function GroupForm(info) {
   async function createGroup() {
     if (groupName !== '') {
       axios.post(server+`/groups`,{ name: groupName,members: memberList,uid:info.user.uid,email:info.user.email}).then(res=>{
-            console.log(res.data)
+            info.setGroups(res.data.groups)
             resetForm()
-            info.setLoad(true)
           })
       }
     }
