@@ -3,6 +3,7 @@ const express = require('express')
 const app = express()
 const fs = require('fs')
 const cors = require('cors')
+const fileUpload = require('express-fileupload')
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 var corsOptions = {
@@ -10,6 +11,7 @@ var corsOptions = {
     optionsSuccessStatus: 200
 }
 app.use(cors(corsOptions))
+app.use(fileUpload())
 const cert = require('./cert')
 const keys = require('./keys');
 const serverIP = 'http://localhost:3000'
@@ -38,7 +40,7 @@ async function signup(certificate, password, privateKey) {
     return { response, jsonRes } = await getEndpoint('/signup', 'POST', { key: encKey, data: encData })
 }
 
-async function login(certificate, password, privateKey,sessionID,sessionKey,uid) {
+async function login(certificate, password, privateKey, sessionID, sessionKey, uid) {
     if (sessionDetails.serverKey === "") {
         sessionDetails.serverKey = getKey()
     }
@@ -77,6 +79,12 @@ function symetricDecrypt(symKey, encData) {
     return decData
 }
 
+function encryptFile(symKey, data){
+    let cipher = crypto.createCipher('aes256', symKey)
+    let encData = cipher.update(data, 'utf-8', 'base64') + cipher.final('base64')
+    return encData
+}
+
 async function getEndpoint(endpoint, method, json) {
     let response = await fetch(serverIP + endpoint, {
         method: method,
@@ -104,24 +112,24 @@ function hash(string) {
 
 function saveUserData(uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate) {
     let saved = false;
-    for(let i=0;i<sessionDetails.users.length;i++){
-        if(sessionDetails.users[i].uid === uid && sessionDetails.users[i].email === email){
+    for (let i = 0; i < sessionDetails.users.length; i++) {
+        if (sessionDetails.users[i].uid === uid && sessionDetails.users[i].email === email) {
             sessionDetails.users[i] = { uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate }
             saved = true
             break;
         }
     }
-    if(!saved){sessionDetails.users.push({ uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate })}
+    if (!saved) { sessionDetails.users.push({ uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate }) }
     saveToFile(email, { uid, email, name, sessionID, sessionKey, publicKey, privateKey, certificate })
 }
 
-function getSession(uid){
+function getSession(uid) {
     for (let i = 0; i < sessionDetails.users.length; i++) {
         if (sessionDetails.users[i].uid === uid) {
-            return {id:sessionDetails.users[i].sessionID,key:sessionDetails.users[i].sessionKey}
+            return { id: sessionDetails.users[i].sessionID, key: sessionDetails.users[i].sessionKey }
         }
     }
-    return 
+    return
 }
 
 function getUserData(email) {
@@ -154,7 +162,7 @@ app.post('/signup', async (req, res) => {
         return res.status(response.status).json({ error: jsonRes.error })
     }
     let sessionKey = crypto.privateDecrypt(privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('utf-8')
-    let decData = symetricDecrypt(sessionKey,jsonRes.data)
+    let decData = symetricDecrypt(sessionKey, jsonRes.data)
     decData = JSON.parse(decData)
     saveUserData(decData.userID, req.body.email, req.body.name, decData.sessionID, sessionKey, publicKey, privateKey, certificate)
     res.json({ uid: decData.userID })
@@ -169,52 +177,100 @@ app.post('/login', async (req, res) => {
         return res.status(400).json({ error: "no account exists" })
     }
 
-    let { response, jsonRes } = await login(details.certificate, hash(req.body.pword), details.privateKey,details.sessionID,details.sessionKey,details.uid)
+    let { response, jsonRes } = await login(details.certificate, hash(req.body.pword), details.privateKey, details.sessionID, details.sessionKey, details.uid)
     if (response.status !== 200) {
         return res.status(response.status).json({ error: jsonRes.error })
     }
     let sessionKey = crypto.privateDecrypt(details.privateKey, Buffer.from(jsonRes.sessionKey, 'base64')).toString('utf-8')
     let decData = JSON.parse(symetricDecrypt(sessionKey, jsonRes.data))
     saveUserData(decData.userID, req.body.email, decData.name, decData.sessionID, sessionKey, details.publicKey, details.privateKey, details.certificate)
-    res.json({ uid: decData.userID,name:decData.name})
+    res.json({ uid: decData.userID, name: decData.name })
 })
 
-app.post('/users/:uid/groups',async (req,res)=>{
-   let session = getSession(req.body.uid)
-   if (session===undefined){
-        return res.status(500).json({error:"not signed in or session has expired"})
-   }
-   let data = symetricEncrypt(session.key,JSON.stringify({email:req.body.email}))
-   let {response, jsonRes} = await getEndpoint(`/${req.body.uid}/groups`,'POST',{data,sessionID:session.id})
-   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
-   res.json(decData)
+app.post('/users/:uid/groups', async (req, res) => {
+    let session = getSession(req.body.uid)
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    let data = symetricEncrypt(session.key, JSON.stringify({ email: req.body.email }))
+    let { response, jsonRes } = await getEndpoint(`/${req.body.uid}/groups`, 'POST', { data, sessionID: session.id })
+    let decData = JSON.parse(symetricDecrypt(session.key, jsonRes.data))
+    res.json(decData)
 })
 
 app.post('/groups', async (req, res) => {
-   let session = getSession(req.body.uid)
-   if (session===undefined){
-        return res.status(500).json({error:"not signed in or session has expired"})
-   }
-   let data = symetricEncrypt(session.key,JSON.stringify({uid:req.body.uid,name:req.body.name,members:req.body.members,email:req.body.email}))
-   let {response, jsonRes} = await getEndpoint(`/groups`,'POST',{data,sessionID:session.id})
-   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
-   res.json(decData)
+    let session = getSession(req.body.uid)
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    let data = symetricEncrypt(session.key, JSON.stringify({ uid: req.body.uid, name: req.body.name, members: req.body.members, email: req.body.email }))
+    let { response, jsonRes } = await getEndpoint(`/groups`, 'POST', { data, sessionID: session.id })
+    let decData = JSON.parse(symetricDecrypt(session.key, jsonRes.data))
+    res.json(decData)
 })
 
-app.post('/del/groups/:id/',async(req,res)=>{
-    console.log(req.body)
-    console.log("del group session dets:",sessionDetails.users)
-   let session = getSession(req.body.uid)
-   if (session===undefined){
-        return res.status(500).json({error:"not signed in or session has expired"})
-   }
-   let data = symetricEncrypt(session.key,JSON.stringify({id:req.body.id,uid:req.body.uid,email:req.body.email}))
-   let {response, jsonRes} = await getEndpoint(`/del/groups/${req.body.id}`,'POST',{data,sessionID:session.id})
-   let decData = JSON.parse(symetricDecrypt(session.key,jsonRes.data))
-   console.log("here")
-   console.log(decData)
-   res.json(decData)
+app.post('/del/groups/:id/', async (req, res) => {
+    let session = getSession(req.body.uid)
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    let data = symetricEncrypt(session.key, JSON.stringify({ id: req.body.id, uid: req.body.uid, email: req.body.email }))
+    let { response, jsonRes } = await getEndpoint(`/del/groups/${req.body.id}`, 'POST', { data, sessionID: session.id })
+    let decData = JSON.parse(symetricDecrypt(session.key, jsonRes.data))
+    res.json(decData)
 })
+
+app.post('/put/groups/:id', async (req, res) => {
+    let session = getSession(req.body.uid)
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    let data = symetricEncrypt(session.key, JSON.stringify({ id: req.body.group.id, group: req.body.group, uid: req.body.uid, email: req.body.email }))
+    let { response, jsonRes } = await getEndpoint(`/groups/${req.body.id}`, 'PUT', { data, sessionID: session.id })
+    let decData = JSON.parse(symetricDecrypt(session.key, jsonRes.data))
+    res.json(decData)
+})
+
+app.post('/encrypt/:groupID/:uid', async (req, res) => {
+    let session = getSession(parseInt(req.params.uid))
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    if (req.files && Object.keys(req.files).length !== 0) {
+        let encFile = encryptFile(session.key,req.files.file.data)
+        let encData = symetricEncrypt(session.key,JSON.stringify({email:req.body.email, uid:req.body.uid}))
+        let { response, jsonRes } = await getEndpoint(`/encrypt/${req.body.groupID}`, 'POST', { file:encFile, data:encData, sessionID: session.id })
+        let decData = symetricDecrypt(session.key, jsonRes.data)
+        if (response.status!==200){
+            return res.status(response.status).json(decData)
+        }
+        req.files.file.data = decData
+        res.send(req.files.file)
+    } else {
+        res.json({error:"no file uploaded"})
+    }
+})
+
+app.post('/decrypt/:groupID/:uid', async (req, res) => {
+    let session = getSession(parseInt(req.params.uid))
+    if (session === undefined) {
+        return res.status(500).json({ error: "not signed in or session has expired" })
+    }
+    if (req.files && Object.keys(req.files).length !== 0) {
+        let encFile = encryptFile(session.key,req.files.file.data)
+        let encData = symetricEncrypt(session.key,JSON.stringify({email:req.body.email, uid:req.body.uid}))
+        let { response, jsonRes } = await getEndpoint(`/decrypt/${req.body.groupID}`, 'POST', { file:encFile, data:encData, sessionID: session.id })
+        let decData = symetricDecrypt(session.key, jsonRes.data)
+        if (response.status!==200){
+            return res.status(response.status).json(decData)
+        }
+        req.files.file.data = decData
+        res.send(req.files.file)
+    } else {
+        res.json({error:"no file uploaded"})
+    }
+})
+
 
 
 

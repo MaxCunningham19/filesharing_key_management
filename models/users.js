@@ -46,12 +46,9 @@ function getSession(sessionID) {
     return undefined
 }
 
-function printOut() {
-    console.log(usersdb)
-}
 
 module.exports = {
     get, getID,
     post,
-    put, getSession, printOut
+    put, getSession
 }

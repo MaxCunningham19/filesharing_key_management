@@ -19,6 +19,20 @@ function get(uid,email){
     return tmp.length>0?tmp:undefined
 }
 
+function put(group, uid, email){
+    let tmp = []
+    for(let i=0;i<groupdb.length;i++){
+        if(groupdb[i].id === group.id && groupdb[i].owner === uid){
+            groupdb[i].members = group.members
+            groupdb[i].name = group.name
+            tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members,owner:groupdb[i].owner === uid})
+        } else if (groupdb[i].owner === uid || isMember(groupdb[i].members,email)){
+            tmp.push({id:groupdb[i].id,name:groupdb[i].name,members:groupdb[i].members,owner:groupdb[i].owner === uid})
+        }
+    }
+    return tmp.length>0?tmp:undefined
+}
+
 function del(groupID,uid,email){
     let tmp = []
     let todel = -1;
@@ -36,9 +50,9 @@ function del(groupID,uid,email){
     return tmp.length>0?tmp:undefined
 }
 
-function getKey(id,user){
+function getKey(id,uid,email){
     for(let i=0;i<groupdb.length;i++){
-        if (groupdb[i].ownerID === user || isMember(groupdb[i].members,user) ){
+        if (groupdb[i].ownerID === uid || isMember(groupdb[i].members,email) ){
             return groupdb[i].key
         }
     }
@@ -54,4 +68,4 @@ function post(ownerid,name,members,groupKey){
     })
 }
 
-module.exports = {get,post,del}
+module.exports = {get,post,del,put,getKey}

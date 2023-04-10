@@ -4,7 +4,6 @@ const crypto = require('crypto')
 var bodyParser = require('body-parser')
 const app = express()
 const Users = require('./models/users')
-const Sessions = require('./models/sessions')
 const Groups = require('./models/groups')
 const { publicKey, privateKey } = require('./keys').generateKeys()
 const cert = require('./cert')
@@ -54,7 +53,6 @@ function validateCert(req, res, next) {
 
 function symetricDecrypt(symKey,encData){
     try{
-    console
     let decipher = crypto.createDecipher('aes256',symKey)
     let decData = decipher.update(encData,'base64','utf-8') + decipher.final('utf-8')
     return decData
@@ -78,6 +76,19 @@ function sessionDecrypt(req, res, next){
     decData = JSON.parse(symetricDecrypt(info.session.key,req.body.data))
     req.body = decData
     req.body.session = info.session
+    next();
+}
+
+function sessionFileDecrypt(req,res,next){
+    let info = Users.getSession(req.body.sessionID)
+    if (info===undefined){
+        return res.status(400).json({error:"session does not exist"})
+    }
+    decData = JSON.parse(symetricDecrypt(info.session.key,req.body.data))
+    decFile = symetricDecrypt(info.session.key,req.body.file)
+    req.body = decData
+    req.body.session = info.session
+    req.body.file = decFile
     next();
 }
 
@@ -175,26 +186,35 @@ app.post('/groups', sessionDecrypt, (req, res) => {
 
 // update a group (you must be the owner)
 app.put('/groups/:id', sessionDecrypt, (req, res) => {
-
+    let groups = Groups.put(req.body.group,req.body.uid,req.body.email)
+    let data = symetricEncrypt(req.body.session.key,JSON.stringify({groups}))
+    res.json({data})
 })
 
 // delete a group (you must be the owner)
 app.post('/del/groups/:id', sessionDecrypt, (req, res) => {
-    console.log("deleting:",req.body)
     let groups = Groups.del(req.body.id,req.body.uid,req.body.email)
     let data = symetricEncrypt(req.body.session.key,JSON.stringify({groups}))
     res.json({data})
 })
 
 // encrypt a file for a group you are a part of
-app.post('/api/encrypt/:groupID',sessionDecrypt, (req, res) => {
-
+app.post('/encrypt/:groupID',sessionFileDecrypt, (req, res) => {
+    let groupKey = Groups.getKey(parseInt(req.params.groupID),req.body.uid,req.body.email)
+    let encFile = symetricEncrypt(groupKey,req.body.file)
+    let decFile = symetricDecrypt(groupKey,encFile)
+    let data = symetricEncrypt(req.body.session.key,encFile)
+    res.json({data})
 })
 
 // decrypt a file for a group you are a part of
-app.post('/api/decrypt/:groupID', sessionDecrypt, (req, res) => {
-
+app.post('/decrypt/:groupID',sessionFileDecrypt, (req, res) => {
+    let groupKey = Groups.getKey(parseInt(req.params.groupID),req.body.uid,req.body.email)
+    let decFile = symetricDecrypt(groupKey,req.body.file)
+    let data = symetricEncrypt(req.body.session.key,decFile)
+    res.json({data})
 })
+
 
 
 // const sslServer = https.createServer(
