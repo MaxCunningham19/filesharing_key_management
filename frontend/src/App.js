@@ -121,6 +121,8 @@ function Homepage({user}) {
       axios.post(server + `/users/${uid}/groups`, { uid, email }).then(res => {
         if (res.data.groups !== undefined && res.data.groups.length > 0) {
           setGroups(res.data.groups)
+        } else {
+          setGroups([])
         }
         setLoad(false)
       })
